@@ -2,4 +2,4 @@
 *.swp
 .idea
 gen_ext4_defs/ext4_simple.go
-gofs
+_obj

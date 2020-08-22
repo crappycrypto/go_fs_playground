@@ -1,5 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 # Very ugly way to generate input for cgo -godefs
+
+# Change working dir to directory of this script
+cd "${0%/*}" || exit 1
 
 echo 'package main
 // #include "ext4_simple.h"
