@@ -12,7 +12,7 @@ import (
 	"unsafe"
 )
 
-//go:generate ./gen_ext4_defs/build.sh
+//go:generate /bin/bash ./gen_ext4_defs/build.sh
 
 const (
 	SuperBlock0Offset = int64(1024)
