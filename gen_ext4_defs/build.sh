@@ -20,4 +20,4 @@ echo "const (" >> ext4_simple.go
 grep "^#define" ext4_simple.h|awk 'NF > 2 {print $2 " = C." $2}' >> ext4_simple.go
 echo ")" >> ext4_simple.go
 
-/usr/local/go/pkg/tool/linux_amd64/cgo -godefs ext4_simple.go > ../ext4_defs.go
+go tool cgo -godefs ext4_simple.go > ../ext4_defs.go
