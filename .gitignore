@@ -3,3 +3,4 @@
 .idea
 gen_ext4_defs/ext4_simple.go
 _obj
+ext4_defs.go
