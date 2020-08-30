@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func testReadFile(t *testing.T) {
+func TestReadFile(t *testing.T) {
 	fsFile := "test.ext4"
 	targetFile := "ext4_simple.h"
 	testDir := "gen_ext4_defs/"
