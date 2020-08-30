@@ -133,9 +133,9 @@ func readInode(fs *Ext4FS, inodeNr int64) *ext4Inode {
 }
 
 type Ext4InodeReader struct {
-	fs           *Ext4FS
-	inode        *ext4Inode
-	offset       int64
+	fs     *Ext4FS
+	inode  *ext4Inode
+	offset int64
 }
 
 func NewExt4InodeReader(fs *Ext4FS, inodeNr int64) *Ext4InodeReader {
@@ -243,7 +243,7 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 	dirBlock := inode.read(inode.fs.blockSize)
 	buf := bytes.NewReader(dirBlock)
 
-	if inode.inode.Flags & EXT4_INDEX_FL > 0 {
+	if inode.inode.Flags&EXT4_INDEX_FL > 0 {
 		dxRoot_ := new(dxRoot)
 		err := binary.Read(buf, binary.LittleEndian, dxRoot_)
 		check(err)
@@ -304,6 +304,47 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 	return dirEntries
 }
 
+func readFile(fsFile *os.File, filePath string, outFile io.Writer) {
+	ext4fs := readSuperBlock(fsFile)
+
+	inode := NewExt4InodeReader(ext4fs, int64(EXT4_ROOT_INO))
+
+	if inode.inode.Mode&S_IFDIR == 0 {
+		log.Panic("inode is not a directory")
+	}
+
+	pathElems := strings.Split(strings.TrimPrefix(filePath, "/"), "/")
+	for _, pathElem := range pathElems {
+		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", inode.inode)
+
+		if inode.inode.Mode&S_IFDIR == 0 {
+			log.Panic("inode is not a directory")
+		}
+
+		nextInodeNr := uint32(0)
+		dirEntries := listDir(inode)
+		for _, entry := range dirEntries {
+			if entry.Name == pathElem {
+				nextInodeNr = entry.Inode
+			}
+		}
+
+		if nextInodeNr == 0 {
+			log.Panicf("%s not found", filePath)
+		}
+
+		inode = NewExt4InodeReader(ext4fs, int64(nextInodeNr))
+	}
+
+	for true {
+		buf3 := inode.read(4096 * 10)
+		if len(buf3) == 0 {
+			break
+		}
+		_, _ = outFile.Write(buf3)
+	}
+}
+
 func usage() {
 	_, _ = fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 	_, _ = fmt.Fprintf(os.Stderr, "  %s EXT4.IMG filename\n", os.Args[0])
@@ -323,45 +364,7 @@ func main() {
 	f, err := os.Open(filename)
 	check(err)
 
-	ext4fs := readSuperBlock(f)
-
-	inode := NewExt4InodeReader(ext4fs, int64(EXT4_ROOT_INO))
-
-	if inode.inode.Mode&S_IFDIR == 0 {
-		log.Panic("inode is not a directory")
-	}
-
-
-	pathElems := strings.Split(strings.TrimPrefix(filename2, "/"), "/")
-	for _, pathElem := range pathElems {
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", inode.inode)
-
-		if inode.inode.Mode&S_IFDIR == 0 {
-			log.Panic("inode is not a directory")
-		}
-
-		nextInodeNr := uint32(0)
-		dirEntries := listDir(inode)
-		for _, entry := range dirEntries {
-			if entry.Name == pathElem {
-				nextInodeNr = entry.Inode
-			}
-		}
-
-		if nextInodeNr == 0 {
-			log.Panicf("%s not found", filename2)
-		}
-
-		inode = NewExt4InodeReader(ext4fs, int64(nextInodeNr))
-	}
-
-	for true {
-		buf3 := inode.read(4096*10)
-		if len(buf3) == 0{
-			break
-		}
-		_, _ = os.Stdout.Write(buf3)
-	}
+	readFile(f, filename2, os.Stdout)
 
 	err = f.Close()
 	check(err)
