@@ -25,6 +25,8 @@ typedef uint8_t __u8;
 typedef uint16_t __u16;
 typedef uint32_t __u32;
 
+typedef uint8_t u8;
+
 /* Replace nonstring modifier */
 #define __nonstring;
 
@@ -469,4 +471,56 @@ struct ext4_dir_entry_2 {
 	__u8	name_len;		/* Name length */
 	__u8	file_type;
 	char	name[EXT4_NAME_LEN];	/* File name */
+};
+
+
+struct fake_dirent
+{
+	__le32 inode;
+	__le16 rec_len;
+	u8 name_len;
+	u8 file_type;
+};
+
+struct dx_countlimit
+{
+	__le16 limit;
+	__le16 count;
+};
+
+struct dx_entry
+{
+	__le32 hash;
+	__le32 block;
+};
+
+/*
+ * dx_root_info is laid out so that if it should somehow get overlaid by a
+ * dirent the two low bits of the hash version will be zero.  Therefore, the
+ * hash version mod 4 should never be 0.  Sincerely, the paranoia department.
+ */
+
+struct dx_root_info
+	{
+		__le32 reserved_zero;
+		u8 hash_version;
+		u8 info_length; /* 8 */
+		u8 indirect_levels;
+		u8 unused_flags;
+	};
+
+struct dx_root
+{
+	struct fake_dirent dot;
+	char dot_name[4];
+	struct fake_dirent dotdot;
+	char dotdot_name[4];
+	struct dx_root_info info;
+	struct dx_entry	entries[];
+};
+
+struct dx_node
+{
+	struct fake_dirent fake;
+	struct dx_entry	entries[];
 };

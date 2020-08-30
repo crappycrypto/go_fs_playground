@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"unsafe"
 )
 
@@ -238,34 +239,67 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 	if inode.inode.Mode&S_IFDIR == 0 {
 		log.Panic("inode is not a directory")
 	}
-	/* Only read directories upto 4 GB */
-	rootDirBlock := inode.read(int64(inode.inode.Size_lo))
+
+	dirBlock := inode.read(inode.fs.blockSize)
+	buf := bytes.NewReader(dirBlock)
+
+	if inode.inode.Flags & EXT4_INDEX_FL > 0 {
+		dxRoot_ := new(dxRoot)
+		err := binary.Read(buf, binary.LittleEndian, dxRoot_)
+		check(err)
+		fmt.Fprintf(os.Stderr, "%+v\n", dxRoot_)
+		dxCountlimit_ := new(dxCountlimit)
+		err = binary.Read(buf, binary.LittleEndian, dxCountlimit_)
+		check(err)
+		fmt.Fprintf(os.Stderr, "%+v\n", dxCountlimit_)
+		block := uint32(0)
+		err = binary.Read(buf, binary.LittleEndian, &block)
+		check(err)
+		fmt.Fprintf(os.Stderr, "%+v\n", block)
+
+		for i := uint16(1); i < dxCountlimit_.Count; i++ {
+			dxEntry := new(dxEntry)
+			err = binary.Read(buf, binary.LittleEndian, dxEntry)
+			check(err)
+			fmt.Fprintf(os.Stderr, "%+v\n", dxEntry)
+		}
+
+		if dxRoot_.Info.Indirect_levels > 0 {
+			log.Panic("indirect_levels > 0 not implemented")
+		}
+	}
 
 	var dirEntries []ext4DirEntry2Go
-	buf := bytes.NewBuffer(rootDirBlock)
-	for buf.Len() > 0 {
-		dirEntry := new(ext4DirEntry2Go)
-		err := binary.Read(buf, binary.LittleEndian, &dirEntry.Inode)
-		check(err)
-		err = binary.Read(buf, binary.LittleEndian, &dirEntry.RecLen)
-		/* Should use RecLen (and not NameLen) */
-		check(err)
-		err = binary.Read(buf, binary.LittleEndian, &dirEntry.NameLen)
-		check(err)
-		err = binary.Read(buf, binary.LittleEndian, &dirEntry.FileType)
-		check(err)
-		name := make([]byte, dirEntry.NameLen)
-		err = binary.Read(buf, binary.LittleEndian, name)
-		check(err)
-		dirEntry.Name = string(name[:])
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", dirEntry)
-		tmp := make([]byte, int(dirEntry.RecLen)-int(dirEntry.NameLen)-8)
-		_, err = buf.Read(tmp)
-		check(err)
-		if dirEntry.Inode == 0 {
-			break
+	for {
+		if len(dirBlock) == 0 {
+			return dirEntries
 		}
-		dirEntries = append(dirEntries, *dirEntry)
+		buf := bytes.NewReader(dirBlock)
+		for buf.Len() > 0 {
+			dirEntry := new(ext4DirEntry2Go)
+			err := binary.Read(buf, binary.LittleEndian, &dirEntry.Inode)
+			check(err)
+			err = binary.Read(buf, binary.LittleEndian, &dirEntry.RecLen)
+			/* Should use RecLen (and not NameLen) */
+			check(err)
+			err = binary.Read(buf, binary.LittleEndian, &dirEntry.NameLen)
+			check(err)
+			err = binary.Read(buf, binary.LittleEndian, &dirEntry.FileType)
+			check(err)
+			name := make([]byte, dirEntry.NameLen)
+			err = binary.Read(buf, binary.LittleEndian, name)
+			check(err)
+			dirEntry.Name = string(name[:])
+			_, _ = fmt.Fprintf(os.Stderr, "%+v\n", dirEntry)
+			tmp := make([]byte, int(dirEntry.RecLen)-int(dirEntry.NameLen)-8)
+			_, err = buf.Read(tmp)
+			check(err)
+			if dirEntry.Inode == 0 {
+				break
+			}
+			dirEntries = append(dirEntries, *dirEntry)
+		}
+		dirBlock = inode.read(inode.fs.blockSize)
 	}
 	return dirEntries
 }
@@ -296,29 +330,33 @@ func main() {
 	if inode.inode.Mode&S_IFDIR == 0 {
 		log.Panic("inode is not a directory")
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "is_dir %t is_file %t\n", inode.inode.Mode&S_IFDIR > 0, inode.inode.Mode&S_IFREG > 0)
-	_, _ = fmt.Fprintf(os.Stderr, "%+v\n", inode.inode)
 
-	dirEntries := listDir(inode)
 
-	for _, entry := range dirEntries {
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", entry)
-	}
+	pathElems := strings.Split(strings.TrimPrefix(filename2, "/"), "/")
+	for _, pathElem := range pathElems {
+		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", inode.inode)
 
-	readInode := uint32(0)
-	for _, entry := range dirEntries {
-		if entry.Name == filename2 {
-			readInode = entry.Inode
+		if inode.inode.Mode&S_IFDIR == 0 {
+			log.Panic("inode is not a directory")
 		}
+
+		nextInodeNr := uint32(0)
+		dirEntries := listDir(inode)
+		for _, entry := range dirEntries {
+			if entry.Name == pathElem {
+				nextInodeNr = entry.Inode
+			}
+		}
+
+		if nextInodeNr == 0 {
+			log.Panicf("%s not found", filename2)
+		}
+
+		inode = NewExt4InodeReader(ext4fs, int64(nextInodeNr))
 	}
 
-	if readInode == 0 {
-		log.Panicf("%s not found", filename2)
-	}
-
-	inode3 := NewExt4InodeReader(ext4fs, int64(readInode))
 	for true {
-		buf3 := inode3.read(4000)
+		buf3 := inode.read(4096*10)
 		if len(buf3) == 0{
 			break
 		}
