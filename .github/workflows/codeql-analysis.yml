@@ -64,8 +64,8 @@ jobs:
     #    uses a compiled language
 
     - run: |
-      go generate -v .
-      go build -v .
+       go generate -v .
+       go build -v .
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
