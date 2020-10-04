@@ -54,7 +54,7 @@ func calcChecksum(prefix []byte, data interface{}, upto uintptr, initialValue ui
 	return calculated
 }
 
-func readSuperBlock(f *os.File) *Ext4FS {
+func ReadSuperBlock(f *os.File) *Ext4FS {
 	result := new(Ext4FS)
 	result.dev = f
 
@@ -238,6 +238,7 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 		log.Panic("inode is not a directory")
 	}
 
+	inode.offset = 0
 	dirBlock := inode.read(inode.fs.blockSize)
 	buf := bytes.NewReader(dirBlock)
 
@@ -303,7 +304,7 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 }
 
 func readFile(fsFile *os.File, filePath string, outFile io.Writer) {
-	ext4fs := readSuperBlock(fsFile)
+	ext4fs := ReadSuperBlock(fsFile)
 
 	inode := NewExt4InodeReader(ext4fs, int64(EXT4_ROOT_INO))
 

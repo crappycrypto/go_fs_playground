@@ -1,6 +1,7 @@
 *~
 *.swp
 .idea
-gen_ext4_defs/ext4_simple.go
+ext4/gen_ext4_defs/ext4_simple.go
 _obj
 ext4_defs.go
+ext4_fuse
