@@ -1,4 +1,4 @@
-package main
+package go_fs_playground
 
 import (
 	"bytes"

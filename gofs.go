@@ -1,4 +1,4 @@
-package main
+package go_fs_playground
 
 import (
 	"bytes"
@@ -78,9 +78,9 @@ func readSuperBlock(f *os.File) *Ext4FS {
 			log.Panic("SuperBlock checksum incorrect")
 		}
 	default:
-		_, _ = fmt.Fprintf(os.Stderr, "Unsupported superBlock checksum")
+		log.Printf("Unsupported superBlock checksum")
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "%+v\n", result.superBlock)
+	log.Printf("%+v\n", result.superBlock)
 
 	/* TODO: check (in)compat flags */
 
@@ -113,7 +113,7 @@ func readGroupDesc(ext4fs *Ext4FS, blockGroupNum int64) *ext4GroupDesc {
 	err = binary.Read(ext4fs.dev, binary.LittleEndian, groupDesc)
 	check(err)
 	/* TODO: validate groupDesc checksum */
-	_, _ = fmt.Fprintf(os.Stderr, "%+v\n", groupDesc)
+	log.Printf("%+v\n", groupDesc)
 	return groupDesc
 }
 
@@ -160,14 +160,14 @@ func (inode *Ext4InodeReader) physicalLoc(blockOffset int64, input io.Reader) ex
 	extentHeader := new(ext4ExtentHeader)
 	err := binary.Read(input, binary.LittleEndian, extentHeader)
 	check(err)
-	_, _ = fmt.Fprintf(os.Stderr, "%+v\n", extentHeader)
+	log.Printf("%+v\n", extentHeader)
 	if extentHeader.Magic != EXT4_EXT_MAGIC {
 		log.Panic("Extent header magic not found")
 	}
 	if extentHeader.Depth > 0 {
 		extentIdxes := make([]ext4ExtentIdx, extentHeader.Entries)
 		err = binary.Read(input, binary.LittleEndian, extentIdxes)
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", extentIdxes)
+		log.Printf("%+v\n", extentIdxes)
 		check(err)
 		var best *ext4ExtentIdx
 		for _, eln := range extentIdxes {
@@ -186,7 +186,7 @@ func (inode *Ext4InodeReader) physicalLoc(blockOffset int64, input io.Reader) ex
 		leafNodes := make([]ext4Extent, extentHeader.Entries)
 		err := binary.Read(input, binary.LittleEndian, leafNodes)
 		check(err)
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", leafNodes)
+		log.Printf("%+v\n", leafNodes)
 		for _, eln := range leafNodes {
 			if (int64(eln.Block) <= blockOffset) && (blockOffset < int64(eln.Block)+int64(eln.Len)) {
 				if eln.Block < 0 {
@@ -215,7 +215,7 @@ func (inode *Ext4InodeReader) read(size int64) []byte {
 	logicalStart := inode.fs.blockSize * int64(extent.Block)
 	offsetIntoExtent := inode.offset - logicalStart
 	physicalStart := inode.fs.blockSize * (int64(extent.Start_lo) + int64(extent.Start_hi)<<32)
-	_, _ = fmt.Fprintf(os.Stderr, "Reading from %x %x %x\n", logicalStart, offsetIntoExtent, physicalStart)
+	log.Printf("Reading from %x %x %x\n", logicalStart, offsetIntoExtent, physicalStart)
 
 	bytesToRead := inode.fs.blockSize*int64(extent.Len) - offsetIntoExtent
 	if bytesToRead > size {
@@ -247,21 +247,21 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 		dxRoot_ := new(dxRoot)
 		err := binary.Read(buf, binary.LittleEndian, dxRoot_)
 		check(err)
-		fmt.Fprintf(os.Stderr, "%+v\n", dxRoot_)
+		log.Printf("%+v\n", dxRoot_)
 		dxCountlimit_ := new(dxCountlimit)
 		err = binary.Read(buf, binary.LittleEndian, dxCountlimit_)
 		check(err)
-		fmt.Fprintf(os.Stderr, "%+v\n", dxCountlimit_)
+		log.Printf("%+v\n", dxCountlimit_)
 		block := uint32(0)
 		err = binary.Read(buf, binary.LittleEndian, &block)
 		check(err)
-		fmt.Fprintf(os.Stderr, "%+v\n", block)
+		log.Printf("%+v\n", block)
 
 		for i := uint16(1); i < dxCountlimit_.Count; i++ {
 			dxEntry := new(dxEntry)
 			err = binary.Read(buf, binary.LittleEndian, dxEntry)
 			check(err)
-			fmt.Fprintf(os.Stderr, "%+v\n", dxEntry)
+			log.Printf("%+v\n", dxEntry)
 		}
 
 		if dxRoot_.Info.Indirect_levels > 0 {
@@ -290,7 +290,7 @@ func listDir(inode *Ext4InodeReader) []ext4DirEntry2Go {
 			err = binary.Read(buf, binary.LittleEndian, name)
 			check(err)
 			dirEntry.Name = string(name[:])
-			_, _ = fmt.Fprintf(os.Stderr, "%+v\n", dirEntry)
+			log.Printf("%+v\n", dirEntry)
 			tmp := make([]byte, int(dirEntry.RecLen)-int(dirEntry.NameLen)-8)
 			_, err = buf.Read(tmp)
 			check(err)
@@ -313,9 +313,9 @@ func readFile(fsFile *os.File, filePath string, outFile io.Writer) {
 		log.Panic("inode is not a directory")
 	}
 
-	pathElems := strings.Split(strings.TrimPrefix(filePath, "/"), "/")
-	for _, pathElem := range pathElems {
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", inode.inode)
+	pathElements := strings.Split(strings.TrimPrefix(filePath, "/"), "/")
+	for _, pathElem := range pathElements {
+		log.Printf("%+v\n", inode.inode)
 
 		if inode.inode.Mode&S_IFDIR == 0 {
 			log.Panic("inode is not a directory")
@@ -345,6 +345,7 @@ func readFile(fsFile *os.File, filePath string, outFile io.Writer) {
 	}
 }
 
+
 func usage() {
 	_, _ = fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 	_, _ = fmt.Fprintf(os.Stderr, "  %s EXT4.IMG filename\n", os.Args[0])
@@ -352,6 +353,7 @@ func usage() {
 }
 
 func main() {
+	log.Printf("Hello world\n")
 	flag.Usage = usage
 	flag.Parse()
 	if flag.NArg() != 2 {

@@ -4,7 +4,7 @@
 # Change working dir to directory of this script
 cd "${0%/*}" || exit 1
 
-echo 'package main
+echo 'package go_fs_playground
 // #include "ext4_simple.h"
 import "C"' > ext4_simple.go
 
