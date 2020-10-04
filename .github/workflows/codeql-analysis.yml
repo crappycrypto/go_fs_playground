@@ -64,8 +64,8 @@ jobs:
     #    uses a compiled language
 
     - run: |
-       go generate -v .
-       go build -v .
+       go generate -v ext4/ext4fs.go
+       go build -v cmd/ext4_fuse.go
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
